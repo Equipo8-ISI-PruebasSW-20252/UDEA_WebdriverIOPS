@@ -1,3 +1,9 @@
+// Make tests run headless/stable in CI runners (GitHub Actions) by adding
+// Chrome args only when running in CI. Local dev runs keep a normal browser.
+const headlessArgs = process.env.CI
+    ? ['--headless=new', '--no-sandbox', '--disable-gpu', '--disable-dev-shm-usage']
+    : [];
+
 export const config = {
     //
     // ====================
@@ -59,7 +65,11 @@ export const config = {
         maxInstances: 5,
         //
         browserName: 'chrome',
-        acceptInsecureCerts: true
+        acceptInsecureCerts: true,
+        // Chrome options for CI (only set args when headlessArgs is non-empty)
+        'goog:chromeOptions': {
+            args: headlessArgs
+        }
         // If outputDir is provided WebdriverIO can capture driver session logs
         // it is possible to configure which logTypes to include/exclude.
         // excludeDriverLogs: ['*'], // pass '*' to exclude all driver session logs
