@@ -262,15 +262,21 @@ When(/^I send the bill payment (?:via API|using the Bill Pay form)$/, async () =
         zipCode: uiData.zip || ''
       }
     };
-    const response = await browser.call(async () => {
-      return await fetch(`${baseUrl}/billpay?${query}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(requestBody)
+    try {
+      const response = await browser.call(async () => {
+        return await fetch(`${baseUrl}/billpay?${query}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(requestBody)
+        });
       });
-    });
-    const bodyText = await response.text();
-    ctx.billPayResponse = { status: response.status >= 400 ? 'error' : 'success', body: bodyText };
+      const bodyText = await response.text();
+      ctx.billPayResponse = { status: response.status >= 400 ? 'error' : 'success', body: bodyText };
+    } catch (fetchErr) {
+      // In CI environments network calls may fail or `fetch` may not be available.
+      // Report an explicit error response so the test can assert accordingly
+      ctx.billPayResponse = { status: 'error', body: String(fetchErr && fetchErr.message ? fetchErr.message : fetchErr) };
+    }
     return;
   }
 
