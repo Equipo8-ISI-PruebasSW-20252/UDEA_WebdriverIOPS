@@ -27,7 +27,6 @@ class LoanPage extends Page {
       '#loanStatus',
       '#responseMessage',
       '#loanRequestResult',
-      '#rightPanel .title',
       '//p[contains(@id,"loan") or contains(@class,"loan")]'
     ];
   }
@@ -96,8 +95,9 @@ class LoanPage extends Page {
       for (const sel of this.resultSelectors) {
         const el = await $(sel);
         if (await el.isExisting()) {
-          const text = await el.getText();
-          if (text && text.trim().length > 0) return true;
+          const text = (await el.getText()) || '';
+          const t = text.trim();
+          if (t.length > 0 && !/apply for a loan/i.test(t)) return true;
         }
       }
       return false;
@@ -108,8 +108,9 @@ class LoanPage extends Page {
     for (const sel of this.resultSelectors) {
       const el = await $(sel);
       if (await el.isExisting()) {
-        const text = await el.getText();
-        if (text && text.trim().length > 0) return text.trim();
+        const text = (await el.getText()) || '';
+        const t = text.trim();
+        if (t.length > 0 && !/apply for a loan/i.test(t)) return t;
       }
     }
     return '';

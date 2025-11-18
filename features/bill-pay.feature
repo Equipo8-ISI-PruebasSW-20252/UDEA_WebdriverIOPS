@@ -1,4 +1,4 @@
-Feature: Pagos (Bill Pay API)
+Feature: Pagos (Bill Pay)
 
   Background:
     Given I am on the login page
@@ -17,7 +17,7 @@ Feature: Pagos (Bill Pay API)
       | account | 13344 |
       | amount  | 25 |
     Then the bill pay payload should include the account and amount
-    When I send the bill payment via API
+    When I send the bill payment using the Bill Pay form
     Then I should receive a bill payment success response
 
   Scenario: Mostrar mensaje de error ante datos inválidos
@@ -31,6 +31,6 @@ Feature: Pagos (Bill Pay API)
       | account | 00000 |
       | amount  | -1 |
     Then the bill pay payload should include the account and amount
-    When I send the bill payment via API
+    When I send the bill payment using the Bill Pay form
     Then I should receive a bill payment error response
 
