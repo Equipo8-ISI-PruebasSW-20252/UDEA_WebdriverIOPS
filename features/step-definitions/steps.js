@@ -3,11 +3,15 @@ import { Given, When, Then } from "@wdio/cucumber-framework";
 import LoginPage from '../pageobjects/login.page.js';
 import AccountsPage from '../pageobjects/accounts.page.js';
 import TransferPage from '../pageobjects/transfer.page.js';
+import BillPayPage from '../pageobjects/billpay.page.js';
+import LoanPage from '../pageobjects/loan.page.js';
 
 const pages = {
   login: LoginPage,
   accounts: AccountsPage,
   transfer: TransferPage,
+  billpay: BillPayPage,
+  loan: LoanPage,
 };
 
 // simple in-file context for sharing values between steps
@@ -193,5 +197,98 @@ Then(/^I should see a validation error about insufficient funds$/, async () => {
     if (msg && await msg.isExisting()) {
       throw new Error('Transfer unexpectedly succeeded when it should have failed');
     }
+  }
+});
+
+// BILL PAY
+When(/^I go to the Bill Pay page$/, async () => {
+  try {
+    ctx.billPayAccounts = await AccountsPage.getAccountNumbers();
+  } catch (err) {
+    ctx.billPayAccounts = [];
+  }
+  await BillPayPage.navigateFromMenu();
+});
+
+When(/^I fill the bill pay form with:$/, async (table) => {
+  const data = table.rowsHash();
+  const normalized = {
+    payee: data.payee || data.payeeName,
+    address: data.address,
+    city: data.city,
+    state: data.state,
+    zip: data.zip || data.zipCode,
+    phone: data.phone || data.phoneNumber,
+    account: data.account,
+    verifyAccount: data.verifyAccount || data.accountVerification || data.account,
+    amount: data.amount,
+    fromAccountIndex: data.fromAccountIndex !== undefined ? Number(data.fromAccountIndex) : 0,
+  };
+  ctx.billPayData = normalized;
+  await BillPayPage.fillBillPayForm(normalized, ctx.billPayAccounts || []);
+});
+
+Then(/^the bill pay review should show the entered data$/, async () => {
+  if (!ctx.billPayData) throw new Error('No bill pay data found in context');
+  const snapshot = await BillPayPage.formSnapshot();
+  const keysToCheck = ['payee', 'account', 'verifyAccount', 'amount'];
+  for (const key of keysToCheck) {
+    const expected = (ctx.billPayData[key] || '').toString().trim();
+    if (!expected) continue;
+    const actual = (snapshot[key] || '').toString().trim();
+    if (!actual.includes(expected)) {
+      throw new Error(`Bill pay form field "${key}" does not match. Expected to include "${expected}" but saw "${actual}"`);
+    }
+  }
+});
+
+When(/^I submit the bill payment$/, async () => {
+  await BillPayPage.submit();
+});
+
+Then(/^I should see a bill payment success message$/, async () => {
+  const message = await BillPayPage.waitForSuccessMessage();
+  if (!/bill payment|complete|successful|processed/i.test(message)) {
+    throw new Error(`Unexpected bill payment confirmation message: "${message}"`);
+  }
+});
+
+Then(/^I should see a bill payment error message containing (.+)$/, async (expectedSnippet) => {
+  const message = await BillPayPage.waitForErrorMessage();
+  if (!message || !message.toLowerCase().includes(expectedSnippet.toLowerCase())) {
+    throw new Error(`Expected bill pay error message to contain "${expectedSnippet}", but got "${message}"`);
+  }
+});
+
+// LOAN
+When(/^I go to the Request Loan page$/, async () => {
+  await LoanPage.navigateFromMenu();
+});
+
+When(/^I request a loan of (\d+(?:\.\d+)?) with a down payment of (\d+(?:\.\d+)?) from account index (\d+)$/, async (amount, downPayment, index) => {
+  ctx.loanRequest = {
+    amount: Number(amount),
+    downPayment: Number(downPayment),
+    accountIndex: Number(index),
+  };
+  await LoanPage.submitLoan(Number(amount), Number(downPayment), Number(index));
+});
+
+Then(/^the loan evaluation result should be displayed$/, async () => {
+  await LoanPage.waitForDecision();
+  ctx.loanDecisionText = await LoanPage.getDecisionText();
+});
+
+Then(/^I should see that the loan was approved$/, async () => {
+  const approved = await LoanPage.isApproved();
+  if (!approved) {
+    throw new Error(`Loan request was not approved. Latest decision: "${ctx.loanDecisionText || ''}"`);
+  }
+});
+
+Then(/^I should see the loan denial reason$/, async () => {
+  const reason = await LoanPage.getDenialReason();
+  if (!reason || !/denied|rejected|unable|declined/i.test(reason)) {
+    throw new Error(`Loan denial reason not displayed. Latest decision text: "${ctx.loanDecisionText || ''}"`);
   }
 });
