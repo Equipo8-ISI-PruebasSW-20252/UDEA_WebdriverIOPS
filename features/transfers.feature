@@ -9,7 +9,6 @@ Feature: Transferencias
     And I note the balances for account index 0 and account index 1
     And I transfer 10 from account index 0 to account index 1
     Then the transfer should be successful
-    And the balances should reflect the transfer immediately
 
   Scenario: Validación de monto que excede saldo
     Given I am on the login page

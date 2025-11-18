@@ -3,14 +3,13 @@ import { Given, When, Then } from "@wdio/cucumber-framework";
 import LoginPage from '../pageobjects/login.page.js';
 import AccountsPage from '../pageobjects/accounts.page.js';
 import TransferPage from '../pageobjects/transfer.page.js';
-import BillPayPage from '../pageobjects/billpay.page.js';
 import LoanPage from '../pageobjects/loan.page.js';
+import BillPayApiPage from '../pageobjects/billpay.api.page.js';
 
 const pages = {
   login: LoginPage,
   accounts: AccountsPage,
   transfer: TransferPage,
-  billpay: BillPayPage,
   loan: LoanPage,
 };
 
@@ -200,63 +199,60 @@ Then(/^I should see a validation error about insufficient funds$/, async () => {
   }
 });
 
-// BILL PAY
-When(/^I go to the Bill Pay page$/, async () => {
-  try {
-    ctx.billPayAccounts = await AccountsPage.getAccountNumbers();
-  } catch (err) {
-    ctx.billPayAccounts = [];
-  }
-  await BillPayPage.navigateFromMenu();
-});
-
-When(/^I fill the bill pay form with:$/, async (table) => {
+// BILL PAY (API)
+When(/^I prepare a bill payment with:$/, async (table) => {
   const data = table.rowsHash();
-  const normalized = {
-    payee: data.payee || data.payeeName,
-    address: data.address,
-    city: data.city,
-    state: data.state,
-    zip: data.zip || data.zipCode,
-    phone: data.phone || data.phoneNumber,
-    account: data.account,
-    verifyAccount: data.verifyAccount || data.accountVerification || data.account,
+  ctx.billPayPayload = {
+    payee: data.payee || data.payeeName || 'Beneficiario',
+    accountId: data.account || data.accountId,
     amount: data.amount,
-    fromAccountIndex: data.fromAccountIndex !== undefined ? Number(data.fromAccountIndex) : 0,
+    overrides: {
+      name: data.payee || data.payeeName || 'Beneficiario',
+      phoneNumber: data.phone || data.phoneNumber || '3000000000',
+      address: {
+        street: data.address || 'Calle 1',
+        city: data.city || 'Medellin',
+        state: data.state || 'ANT',
+        zipCode: data.zip || data.zipCode || '050021',
+      },
+    },
   };
-  ctx.billPayData = normalized;
-  await BillPayPage.fillBillPayForm(normalized, ctx.billPayAccounts || []);
 });
 
-Then(/^the bill pay review should show the entered data$/, async () => {
-  if (!ctx.billPayData) throw new Error('No bill pay data found in context');
-  const snapshot = await BillPayPage.formSnapshot();
-  const keysToCheck = ['payee', 'account', 'verifyAccount', 'amount'];
-  for (const key of keysToCheck) {
-    const expected = (ctx.billPayData[key] || '').toString().trim();
-    if (!expected) continue;
-    const actual = (snapshot[key] || '').toString().trim();
-    if (!actual.includes(expected)) {
-      throw new Error(`Bill pay form field "${key}" does not match. Expected to include "${expected}" but saw "${actual}"`);
-    }
+Then(/^the bill pay payload should include the account and amount$/, async () => {
+  if (!ctx.billPayPayload) throw new Error('No bill pay payload prepared');
+  if (!ctx.billPayPayload.accountId) {
+    throw new Error('Bill pay payload does not include an accountId');
+  }
+  if (!ctx.billPayPayload.amount) {
+    throw new Error('Bill pay payload does not include an amount');
   }
 });
 
-When(/^I submit the bill payment$/, async () => {
-  await BillPayPage.submit();
+When(/^I send the bill payment via API$/, async () => {
+  if (!ctx.billPayPayload) throw new Error('No bill pay payload prepared to send');
+  ctx.billPayResponse = await BillPayApiPage.payBill(ctx.billPayPayload);
 });
 
-Then(/^I should see a bill payment success message$/, async () => {
-  const message = await BillPayPage.waitForSuccessMessage();
-  if (!/bill payment|complete|successful|processed/i.test(message)) {
-    throw new Error(`Unexpected bill payment confirmation message: "${message}"`);
+Then(/^I should receive a bill payment success response$/, async () => {
+  if (!ctx.billPayResponse) throw new Error('No bill pay response available');
+  if (ctx.billPayResponse.status < 200 || ctx.billPayResponse.status >= 300) {
+    throw new Error(`Expected success status but got ${ctx.billPayResponse.status}. Body: ${ctx.billPayResponse.body}`);
   }
 });
 
-Then(/^I should see a bill payment error message containing (.+)$/, async (expectedSnippet) => {
-  const message = await BillPayPage.waitForErrorMessage();
-  if (!message || !message.toLowerCase().includes(expectedSnippet.toLowerCase())) {
-    throw new Error(`Expected bill pay error message to contain "${expectedSnippet}", but got "${message}"`);
+Then(/^I should receive a bill payment error response$/, async () => {
+  if (!ctx.billPayResponse) throw new Error('No bill pay response available');
+  if (ctx.billPayResponse.status < 400) {
+    throw new Error(`Expected error status but got ${ctx.billPayResponse.status}. Body: ${ctx.billPayResponse.body}`);
+  }
+});
+
+Then(/^the bill payment response should mention (.+)$/, async (snippet) => {
+  if (!ctx.billPayResponse) throw new Error('No bill pay response available');
+  const body = ctx.billPayResponse.body || '';
+  if (!body.toLowerCase().includes(snippet.toLowerCase())) {
+    throw new Error(`Expected bill pay response to mention "${snippet}" but got "${body}"`);
   }
 });
 

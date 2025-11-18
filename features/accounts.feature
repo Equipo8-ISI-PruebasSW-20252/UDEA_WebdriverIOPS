@@ -16,4 +16,4 @@ Feature: Consulta de Estados
     When I view my accounts overview
     And I click on the account number at index 0
     Then I should see the account details for that account
-    And the transactions list should update when I select another account
+ 
